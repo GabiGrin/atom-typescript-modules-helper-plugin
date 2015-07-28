@@ -1,4 +1,6 @@
 TypescriptImportView = require './typescript-import-view'
+SubAtom = require 'sub-atom';
+
 {CompositeDisposable} = require 'atom'
 
 module.exports = TypescriptImport =
@@ -16,8 +18,26 @@ module.exports = TypescriptImport =
     # Register command that toggles this view
     @subscriptions.add atom.commands.add 'atom-workspace', 'typescript-import:insert': => @insert()
     @subscriptions.add atom.commands.add 'atom-workspace', 'typescript-import:build-index': => @buildIndex()
+    @subscriptions.add atom.commands.add 'atom-workspace', 'typescript-import:go-to-declaration': => @goToDeclaration()
 
     @index = state || {};
+    @sub = new SubAtom()
+    #bindEvent = @bindEvent
+    @sub.add(atom.workspace.observeTextEditors((editor) =>
+        @bindEvent(editor)
+    ))
+
+  bindEvent: (editor) ->
+    console.log('bound event')
+    editorView = atom.views.getView(editor)
+#    editorView.on 'click.atom-hack',(e)=>
+#      console.log (editor.getCursorBufferPosition())
+
+    @sub.add(editorView, 'click', (e) =>
+      if (e.metaKey || e.ctrlKey)
+        @goToDeclaration()
+    )
+
 
   deactivate: ->
     @modalPanel.destroy()
@@ -27,21 +47,26 @@ module.exports = TypescriptImport =
   serialize: ->
     @index
 
-  goToSymbol: ->
-
+  goToDeclaration: ->
+    editor = atom.workspace.getActiveTextEditor()
+    selection = editor.getSelectedText().trim()
+    symbolLocation = @index[selection]
+    if symbolLocation and selection
+      atom.workspace.open(symbolLocation)
 
   insert: ->
-      console.log(@index);
+      @bindEvent()
+      console.log(@index)
       path = require('path')
       editor = atom.workspace.getActiveTextEditor()
       selection = editor.getSelectedText().trim()
       filePath = editor.getPath();
       symbolLocation = @index[selection]
-      if symbolLocation
+      if symbolLocation && selection
         fileFolder = path.resolve(filePath + '/..')
         relative = path.relative(fileFolder, symbolLocation).replace(/\.(js|ts)$/, '');
         console.log('filePath, symbolLocation, relative', filePath, symbolLocation);
-        importClause = "\nimport #{selection} from '#{relative}';"
+        importClause = "\nimport #{selection} from './#{relative}';"
         editor.setTextInBufferRange([[0,0], [0,0]], importClause + '\n')
 #        editor.insertText(selection + "\nimport #{selection} from './#{relative}'")
       else
