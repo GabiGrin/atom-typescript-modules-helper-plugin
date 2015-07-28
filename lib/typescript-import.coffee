@@ -62,6 +62,8 @@ module.exports = TypescriptImport =
       console.log(@index)
       path = require('path')
       editor = atom.workspace.getActiveTextEditor()
+      position = editor.getCursorBufferPosition()
+      editor.selectWordsContainingCursors()
       selection = editor.getSelectedText().trim()
       filePath = editor.getPath();
       symbolLocation = @index[selection]
