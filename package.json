@@ -4,9 +4,7 @@
   "version": "0.0.0",
   "description": "A short description of your package",
   "keywords": [],
-  "activationCommands": {
-    "atom-workspace": "typescript-import:insert"
-  },
+  "activationHooks": ["language-javascript:grammar-used", "language-coffee-script:grammar-used", "language-typescript:grammar-used"],
   "repository": "https://github.com/atom/typescript-import",
   "license": "MIT",
   "engines": {

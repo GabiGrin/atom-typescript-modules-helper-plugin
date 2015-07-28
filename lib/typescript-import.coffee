@@ -49,7 +49,10 @@ module.exports = TypescriptImport =
 
   goToDeclaration: ->
     editor = atom.workspace.getActiveTextEditor()
+    position = editor.getCursorBufferPosition();
+    editor.selectWordsContainingCursors();
     selection = editor.getSelectedText().trim()
+    editor.setCursorBufferPosition(position);
     symbolLocation = @index[selection]
     if symbolLocation and selection
       atom.workspace.open(symbolLocation)
