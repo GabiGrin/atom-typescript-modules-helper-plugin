@@ -57,6 +57,24 @@ module.exports = TypescriptImport =
     if symbolLocation and selection
       atom.workspace.open(symbolLocation)
 
+  addImportStatement: (importStatement) ->
+      editor = atom.workspace.getActiveTextEditor()
+      currentText = editor.getText()
+      currentPosition = editor.getCursorBufferPosition()
+      importMatches = currentText.match(/import\s*\w*\s*from.*\n/)
+      referencesMatches= currentText.match(/\/\/\/\s*<reference\s*path.*\/>\n/g)
+      if importMatches
+        lastImport = importMatches.pop();
+        currentText = currentText.replace(lastImport, lastImport + importStatement);
+      else if referencesMatches
+        lastReference = referencesMatches.pop();
+        currentText = currentText.replace(lastReference, lastReference + '\n' + importStatement);
+      else
+        currentText = importStatement + currentText;
+      editor.setText(currentText);
+      currentPosition.row++;
+      editor.setCursorBufferPosition(currentPosition)
+
   insert: ->
       @bindEvent()
       console.log(@index)
@@ -71,8 +89,8 @@ module.exports = TypescriptImport =
         fileFolder = path.resolve(filePath + '/..')
         relative = path.relative(fileFolder, symbolLocation).replace(/\.(js|ts)$/, '');
         console.log('filePath, symbolLocation, relative', filePath, symbolLocation);
-        importClause = "\nimport #{selection} from './#{relative}';"
-        editor.setTextInBufferRange([[0,0], [0,0]], importClause + '\n')
+        importClause = "import #{selection} from './#{relative}';\n"
+        @addImportStatement(importClause)
 #        editor.insertText(selection + "\nimport #{selection} from './#{relative}'")
       else
         console.log('No cached data found for symbol', selection)
