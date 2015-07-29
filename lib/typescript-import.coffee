@@ -1,17 +1,12 @@
-TypescriptImportView = require './typescript-import-view'
 SubAtom = require 'sub-atom';
 
 {CompositeDisposable} = require 'atom'
 
 module.exports = TypescriptImport =
-  typescriptImportView: null
   modalPanel: null
   subscriptions: null
 
   activate: (state) ->
-    @typescriptImportView = new TypescriptImportView(state.typescriptImportViewState)
-    @modalPanel = atom.workspace.addModalPanel(item: @typescriptImportView.getElement(), visible: false)
-
     # Events subscribed to in atom's system can be easily cleaned up with a CompositeDisposable
     @subscriptions = new CompositeDisposable
 
@@ -42,7 +37,6 @@ module.exports = TypescriptImport =
   deactivate: ->
     @modalPanel.destroy()
     @subscriptions.dispose()
-    @typescriptImportView.destroy()
 
   serialize: ->
     @index
@@ -77,7 +71,6 @@ module.exports = TypescriptImport =
 
   insert: ->
       @bindEvent()
-      console.log(@index)
       path = require('path')
       editor = atom.workspace.getActiveTextEditor()
       position = editor.getCursorBufferPosition()
@@ -88,7 +81,6 @@ module.exports = TypescriptImport =
       if symbolLocation && selection
         fileFolder = path.resolve(filePath + '/..')
         relative = path.relative(fileFolder, symbolLocation).replace(/\.(js|ts)$/, '');
-        console.log('filePath, symbolLocation, relative', filePath, symbolLocation);
         importClause = "import #{selection} from './#{relative}';\n"
         @addImportStatement(importClause)
 #        editor.insertText(selection + "\nimport #{selection} from './#{relative}'")
@@ -99,11 +91,9 @@ module.exports = TypescriptImport =
     index = @index;
     symbolPattern = /export\s*default\s*(class|function)?\s*(([a-zA-Z])*)/
     atom.workspace.scan(symbolPattern, null, (result) ->
-        console.log(result);
         rawSymbol = result.matches[0].matchText
         symbol = rawSymbol.match(symbolPattern)[2];
         index[symbol] = result.filePath;
-        console.log('Added', symbol, result.filePath);
       );
   getIndex: ->
     @index
