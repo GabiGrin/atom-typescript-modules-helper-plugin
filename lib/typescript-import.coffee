@@ -50,19 +50,26 @@ module.exports = TypescriptImport =
     symbolLocation = @index[selection]
     if symbolLocation and selection
       atom.workspace.open(symbolLocation)
+    else
+      atom.commands.dispatch(document.querySelector('atom-text-editor'), 'typescript:go-to-declaration')
+
 
   addImportStatement: (importStatement) ->
       editor = atom.workspace.getActiveTextEditor()
       currentText = editor.getText()
       currentPosition = editor.getCursorBufferPosition()
-      importMatches = currentText.match(/import\s*\w*\s*from.*\n/)
+      importMatches = currentText.match(/import\s*\w*\s*from.*\n/g)
       referencesMatches= currentText.match(/\/\/\/\s*<reference\s*path.*\/>\n/g)
+      useStrictMatche = currentText.match(/.*[\'\"]use strict[\'\"].*/)
       if importMatches
         lastImport = importMatches.pop();
         currentText = currentText.replace(lastImport, lastImport + importStatement);
       else if referencesMatches
         lastReference = referencesMatches.pop();
         currentText = currentText.replace(lastReference, lastReference + '\n' + importStatement);
+      else if useStrictMatche
+        useStrict = useStrictMatche.pop();
+        currentText = currentText.replace(useStrict, useStrict + '\n' + importStatement);
       else
         currentText = importStatement + currentText;
       editor.setText(currentText);
