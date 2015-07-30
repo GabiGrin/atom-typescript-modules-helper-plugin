@@ -1,4 +1,4 @@
-# typescript-es6-modules-helper
+# typescript-modules-helper
 
 Adds "import Foo from '../bar'" statements for you.  
 Adds "go to declaration" that works with modules declared elsewhere, and fallbacks to atom-typescript go to declaration, just ctrl/cmd click an indexed symbol.
