@@ -1,8 +1,8 @@
 {
-  "name": "typescript-import",
+  "name": "typescript-modules-helper",
   "main": "./lib/typescript-import",
   "version": "0.0.0",
-  "description": "A short description of your package",
+  "description": "Add ES6 import statements automatically to Typescript files.",
   "keywords": [],
   "activationHooks": ["language-javascript:grammar-used", "language-coffee-script:grammar-used", "language-typescript:grammar-used"],
   "repository": "https://github.com/atom/typescript-import",
