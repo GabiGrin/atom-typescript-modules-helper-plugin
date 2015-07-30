@@ -2,10 +2,14 @@
   "name": "typescript-modules-helper",
   "main": "./lib/typescript-import",
   "version": "0.0.0",
+  "author": {
+    "name": "Gabriel Grinberg",
+    "url": "https://github.com/GabiGrin/"
+  },
   "description": "Add ES6 import statements automatically to Typescript files.",
   "keywords": [],
   "activationHooks": ["language-javascript:grammar-used", "language-coffee-script:grammar-used", "language-typescript:grammar-used"],
-  "repository": "https://github.com/atom/typescript-import",
+  "repository": "https://github.com/GabiGrin/atom-typescript-modules-helper-plugin",
   "license": "MIT",
   "engines": {
     "atom": ">=1.0.0 <2.0.0"
