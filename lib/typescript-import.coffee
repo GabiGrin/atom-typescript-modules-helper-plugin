@@ -77,6 +77,7 @@ module.exports = TypescriptImport =
       editor.setCursorBufferPosition(currentPosition)
 
   insert: ->
+      @buildIndex()
       @bindEvent()
       path = require('path')
       editor = atom.workspace.getActiveTextEditor()
