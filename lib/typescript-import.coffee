@@ -47,9 +47,9 @@ module.exports = TypescriptImport =
     editor.selectWordsContainingCursors();
     selection = editor.getSelectedText().trim()
     editor.setCursorBufferPosition(position);
-    symbolLocation = @index[selection]
-    if symbolLocation and selection
-      atom.workspace.open(symbolLocation)
+    symbol = @index[selection]
+    if symbol and selection
+      atom.workspace.open(symbol.path)
     else
       atom.commands.dispatch(document.querySelector('atom-text-editor'), 'typescript:go-to-declaration')
 
@@ -57,24 +57,28 @@ module.exports = TypescriptImport =
   addImportStatement: (importStatement) ->
       editor = atom.workspace.getActiveTextEditor()
       currentText = editor.getText()
-      currentPosition = editor.getCursorBufferPosition()
-      importMatches = currentText.match(/import\s*\w*\s*from.*\n/g)
-      referencesMatches= currentText.match(/\/\/\/\s*<reference\s*path.*\/>\n/g)
-      useStrictMatche = currentText.match(/.*[\'\"]use strict[\'\"].*/)
-      if importMatches
-        lastImport = importMatches.pop();
-        currentText = currentText.replace(lastImport, lastImport + importStatement);
-      else if referencesMatches
-        lastReference = referencesMatches.pop();
-        currentText = currentText.replace(lastReference, lastReference + '\n' + importStatement);
-      else if useStrictMatche
-        useStrict = useStrictMatche.pop();
-        currentText = currentText.replace(useStrict, useStrict + '\n' + importStatement);
+
+      if currentText.indexOf(importStatement)>=0
+        atom.notifications.addWarning('Import already defined.');
       else
-        currentText = importStatement + currentText;
-      editor.setText(currentText);
-      currentPosition.row++;
-      editor.setCursorBufferPosition(currentPosition)
+        currentPosition = editor.getCursorBufferPosition()
+        importMatches = currentText.match(/import\s*\w*\s*from.*\n/g)
+        referencesMatches= currentText.match(/\/\/\/\s*<reference\s*path.*\/>\n/g)
+        useStrictMatche = currentText.match(/.*[\'\"]use strict[\'\"].*/)
+        if importMatches
+          lastImport = importMatches.pop();
+          currentText = currentText.replace(lastImport, lastImport + importStatement);
+        else if referencesMatches
+          lastReference = referencesMatches.pop();
+          currentText = currentText.replace(lastReference, lastReference + '\n' + importStatement);
+        else if useStrictMatche
+          useStrict = useStrictMatche.pop();
+          currentText = currentText.replace(useStrict, useStrict + '\n' + importStatement);
+        else
+          currentText = importStatement + currentText;
+        editor.setText(currentText);
+        currentPosition.row++;
+        editor.setCursorBufferPosition(currentPosition)
 
   insert: ->
       @buildIndex()
@@ -85,23 +89,37 @@ module.exports = TypescriptImport =
       editor.selectWordsContainingCursors()
       selection = editor.getSelectedText().trim()
       filePath = editor.getPath();
-      symbolLocation = @index[selection]
-      if symbolLocation && selection
-        fileFolder = path.resolve(filePath + '/..')
-        relative = path.relative(fileFolder, symbolLocation).replace(/\.(js|ts)$/, '');
-        importClause = "import #{selection} from './#{relative}';\n"
+      symbol = @index[selection]
+      if symbol && selection
+        location = symbol.path;
+        defaultImport = symbol.defaultImport;
+        fileFolder = path.resolve(filePath + '/..');
+        relative = path.relative(fileFolder, location).replace(/\.(js|ts)$/, '');
+        if(defaultImport)
+          importClause = "import #{selection} from './#{relative}'\n"
+        else
+          importClause = "import {#{selection}} from './#{relative}'\n"
         @addImportStatement(importClause)
 #        editor.insertText(selection + "\nimport #{selection} from './#{relative}'")
       else
-        console.log('No cached data found for symbol', selection)
+        atom.notifications.addError('Symbol '+selection+' not found.');
 
   buildIndex: ->
     index = @index;
-    symbolPattern = /export\s*default\s*(class|function)?\s*(([a-zA-Z])*)/
-    atom.workspace.scan(symbolPattern, null, (result) ->
-        rawSymbol = result.matches[0].matchText
-        symbol = rawSymbol.match(symbolPattern)[2];
-        index[symbol] = result.filePath;
+    searchPaths = ['**/*.ts', '**/*.js']
+    symbolPattern = /export\s*default\s*(class|interface|namespace|enum|function)?\s*(([a-zA-Z0-9])*)/
+    atom.workspace.scan(symbolPattern, { paths: searchPaths }, (result) ->
+        for res in result.matches
+          rawSymbol = res.matchText
+          symbol = rawSymbol.match(symbolPattern)[2];
+          index[symbol] = { path: result.filePath, defaultImport: true };
+      );
+    symbolPatternNoDefault = /export *(class|interface|namespace|enum|function)?\s*(([a-zA-Z0-9])*)/
+    atom.workspace.scan(symbolPatternNoDefault, { paths: searchPaths }, (result) ->
+        for res in result.matches
+          rawSymbol = res.matchText
+          symbol = rawSymbol.match(symbolPatternNoDefault)[2];
+          index[symbol] = { path: result.filePath, defaultImport: false };
       );
   getIndex: ->
     @index
