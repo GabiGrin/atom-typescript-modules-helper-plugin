@@ -88,7 +88,7 @@ module.exports = TypescriptImport =
       symbolLocation = @index[selection]
       if symbolLocation && selection
         fileFolder = path.resolve(filePath + '/..')
-        relative = path.relative(fileFolder, symbolLocation).replace(/\.(js|ts)$/, '').replace(/\\/g, '/')
+        relative = path.relative(fileFolder, symbolLocation).replace(/\.(js|ts)$/, '');
         importClause = "import #{selection} from './#{relative}';\n"
         @addImportStatement(importClause)
 #        editor.insertText(selection + "\nimport #{selection} from './#{relative}'")
