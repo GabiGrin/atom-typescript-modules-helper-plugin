@@ -24,4 +24,11 @@ Adds "go to declaration" that works with modules declared elsewhere, and fallbac
 - Rewrite using Typescript
 
 #Contributing
-Anything is welcome!  
+dokkis:
+- workspace.scan now is limited to ts and js files
+- added support for multiple export symbol in one file 
+- support for non default export
+- support for interface, namespace and enum
+- added warning notification if you try to import multiple times the same symbol
+- added error notification if the plugin does not find the symbol
+- added support for numbers in the symbol definition (example ClassName1)
