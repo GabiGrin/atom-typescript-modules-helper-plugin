@@ -83,6 +83,7 @@ module.exports = TypescriptImport =
   insert: ->
       @buildIndex()
       @bindEvent()
+      os = require('os')
       path = require('path')
       editor = atom.workspace.getActiveTextEditor()
       position = editor.getCursorBufferPosition()
@@ -96,6 +97,9 @@ module.exports = TypescriptImport =
         defaultImport = symbol.defaultImport;
         fileFolder = path.resolve(filePath + '/..');
         relative = path.relative(fileFolder, location).replace(/\.(jsx?|tsx?)$/, '');
+        # Replace the windows path seperator with '/'
+        if (os.platform() == 'win32')
+            relative = relative.split(path.sep).join('/');
 
         if(defaultImport)
           importClause = "import #{selection} from './#{relative}';\n"
