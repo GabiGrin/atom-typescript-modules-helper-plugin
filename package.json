@@ -1,7 +1,7 @@
 {
   "name": "typescript-modules-helper",
   "main": "./lib/typescript-import",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "author": {
     "name": "Gabriel Grinberg",
     "url": "https://github.com/GabiGrin/"
