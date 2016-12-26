@@ -113,14 +113,14 @@ module.exports = TypescriptImport =
   buildIndex: ->
     index = @index;
     searchPaths = ['**/*.ts', '**/*.js', '**/*.tsx', '**/*.jsx'];
-    symbolPattern = /export\s*default\s*(class|interface|namespace|enum|const|function)?\s*(([a-zA-Z0-9])*)/
+    symbolPattern = /export\s*default\s*(class|interface|namespace|enum|const|type|function)?\s*(([a-zA-Z0-9])*)/
     atom.workspace.scan(symbolPattern, { paths: searchPaths }, (result) ->
         for res in result.matches
           rawSymbol = res.matchText
           symbol = rawSymbol.match(symbolPattern)[2];
           index[symbol] = { path: result.filePath, defaultImport: true };
       );
-    symbolPatternNoDefault = /export *(class|interface|namespace|enum|const|function)?\s*(([a-zA-Z0-9])*)/
+    symbolPatternNoDefault = /export *(class|interface|namespace|enum|const|type|function)?\s*(([a-zA-Z0-9])*)/
     atom.workspace.scan(symbolPatternNoDefault, { paths: searchPaths }, (result) ->
         for res in result.matches
           rawSymbol = res.matchText
