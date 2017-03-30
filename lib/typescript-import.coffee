@@ -62,7 +62,7 @@ module.exports = TypescriptImport =
         atom.notifications.addWarning('Import already defined.');
       else
         currentPosition = editor.getCursorBufferPosition()
-        importMatches = currentText.match(/import\s*\w*\s*from.*\n/g)
+        importMatches = currentText.match(/import\s*(\{\s*)?\w*\s*(\}\s*)?from.*\n/g)
         referencesMatches= currentText.match(/\/\/\/\s*<reference\s*path.*\/>\n/g)
         useStrictMatche = currentText.match(/.*[\'\"]use strict[\'\"].*/)
         if importMatches
