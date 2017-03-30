@@ -101,10 +101,13 @@ module.exports = TypescriptImport =
         if (os.platform() == 'win32')
             relative = relative.split(path.sep).join('/');
 
+        if(!/^\./.test(relative))
+          relative = './' + relative;
+
         if(defaultImport)
-          importClause = "import #{selection} from './#{relative}';\n"
+          importClause = "import #{selection} from '#{relative}';\n"
         else
-          importClause = "import {#{selection}} from './#{relative}';\n"
+          importClause = "import {#{selection}} from '#{relative}';\n"
         @addImportStatement(importClause)
 #        editor.insertText(selection + "\nimport #{selection} from './#{relative}'")
       else
