@@ -23,7 +23,7 @@ module.exports = TypescriptImport =
     ))
 
   bindEvent: (editor) ->
-    console.log('bound event')
+    # console.log('bound event')
     editorView = atom.views.getView(editor)
 #    editorView.on 'click.atom-hack',(e)=>
 #      console.log (editor.getCursorBufferPosition())
@@ -81,11 +81,11 @@ module.exports = TypescriptImport =
         editor.setCursorBufferPosition(currentPosition)
 
   insert: ->
+      editor = atom.workspace.getActiveTextEditor()
       @buildIndex()
-      @bindEvent()
+      @bindEvent(editor)
       os = require('os')
       path = require('path')
-      editor = atom.workspace.getActiveTextEditor()
       position = editor.getCursorBufferPosition()
       editor.selectWordsContainingCursors()
       selection = editor.getSelectedText().trim()
