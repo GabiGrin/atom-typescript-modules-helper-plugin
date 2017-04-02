@@ -54,28 +54,57 @@ module.exports = TypescriptImport =
       atom.commands.dispatch(document.querySelector('atom-text-editor'), 'typescript:go-to-declaration')
 
 
-  addImportStatement: (importStatement) ->
+  addImportStatement: (importedSymbol, relativePath, isDefaultImport) ->
       editor = atom.workspace.getActiveTextEditor()
       currentText = editor.getText()
 
-      if currentText.indexOf(importStatement)>=0
-        atom.notifications.addWarning('Import already defined.');
+      reImports = /import(.|\r|\n)+?from(.*)$/gm;
+      isDefined = false
+      hasImportStatements = false;
+      lastMatchIndex = 0
+      while(!isDefined && importMatch = reImports.exec(currentText))
+        if !@isInComment(importMatch.index, lastMatchIndex, currentText)
+          lastMatchIndex = importMatch.index
+          hasImportStatements = true
+          #TODO check for comments using lastImport
+          lastImport = importMatch[0]
+          if @containsSymbol(importMatch, importedSymbol)
+            isDefined = true
+          #TODO handle insertion of default imports (currently: create a new import statement if default import)
+          else if !isDefaultImport && @isImportFromFile(importMatch, relativePath)
+            newStatement = @insertIntoStatement(importMatch, importedSymbol, isDefaultImport)
+            existingImportStatement = {match: importMatch, statement: newStatement}
+        else
+            lastMatchIndex = importMatch.index
+
+      if isDefined
+        atom.notifications.addWarning('Import '+importedSymbol+' is already defined.');
       else
         currentPosition = editor.getCursorBufferPosition()
-        importMatches = currentText.match(/import\s*\w*\s*from.*\n/g)
-        referencesMatches= currentText.match(/\/\/\/\s*<reference\s*path.*\/>\n/g)
-        useStrictMatche = currentText.match(/.*[\'\"]use strict[\'\"].*/)
-        if importMatches
-          lastImport = importMatches.pop();
-          currentText = currentText.replace(lastImport, lastImport + importStatement);
-        else if referencesMatches
-          lastReference = referencesMatches.pop();
-          currentText = currentText.replace(lastReference, lastReference + '\n' + importStatement);
-        else if useStrictMatche
-          useStrict = useStrictMatche.pop();
-          currentText = currentText.replace(useStrict, useStrict + '\n' + importStatement);
+        if hasImportStatements
+          if existingImportStatement
+            newStatement = existingImportStatement.statement
+            importMatch = existingImportStatement.match
+            prefixEnd = importMatch.index
+            suffixStart = prefixEnd + importMatch[0].length
+            currentText = currentText.substring(0, prefixEnd) + newStatement + currentText.substring(suffixStart)
+          else
+            importStatement = @createNewImportStatement(importedSymbol, relativePath, isDefaultImport)
+            currentText = currentText.replace(lastImport, lastImport + importStatement);
         else
-          currentText = importStatement + currentText;
+          importStatement = @createNewImportStatement(importedSymbol, relativePath, isDefaultImport)
+          referencesMatches= currentText.match(/\/\/\/\s*<reference\s*path.*\/>\s*$/gm)
+          nl = @getNewLineChar()
+          if referencesMatches
+            lastReference = referencesMatches.pop();
+            currentText = currentText.replace(lastReference, lastReference + importStatement + nl);
+          else
+            useStrictMatche = currentText.match(/.*[\'\"]use strict[\'\"].*/)
+            if useStrictMatche
+              useStrict = useStrictMatche.pop();
+              currentText = currentText.replace(useStrict, useStrict + importStatement + nl);
+            else
+              currentText = importStatement + currentText;
         editor.setText(currentText);
         currentPosition.row++;
         editor.setCursorBufferPosition(currentPosition)
@@ -101,14 +130,128 @@ module.exports = TypescriptImport =
         if (os.platform() == 'win32')
             relative = relative.split(path.sep).join('/');
 
-        if(defaultImport)
-          importClause = "import #{selection} from './#{relative}';\n"
-        else
-          importClause = "import {#{selection}} from './#{relative}';\n"
-        @addImportStatement(importClause)
-#        editor.insertText(selection + "\nimport #{selection} from './#{relative}'")
+        if(!/^\./.test(relative))
+          relative = './' + relative;
+
+        @addImportStatement(selection, relative, defaultImport)
       else
         atom.notifications.addError('Symbol '+selection+' not found.');
+
+  createNewImportStatement: (importedSymbol, relativePath, isDefaultImport) ->
+    nl = @getNewLineChar()
+
+    if(isDefaultImport)
+      importStatement = "#{nl}import #{importedSymbol} from '#{relativePath}';"
+    else
+      importStatement = "#{nl}import { #{importedSymbol} } from '#{relativePath}';"
+
+
+  getNewLineChar: ->
+    switch atom.config.get('line-ending-selector.defaultLineEnding')
+      when 'CRLF' then return '\r\n'
+      when 'LF' then return '\n'
+      # when 'OS Default' then
+      else
+        os = require('os')
+        if os.platform() == 'win32'
+          return '\r\n'
+        else
+          return '\n'
+
+
+  isInComment: (startIndex, previousIndex, text) ->
+    if @isInMultiLineComment(startIndex, previousIndex, text)
+      return true
+    else
+      return @isInLineComment(startIndex, previousIndex, text)
+
+  isInLineComment: (startIndex, previousIndex, text) ->
+    reLineComment = /\/\//g
+    reLineComment.lastIndex = previousIndex
+
+    #find last line-comment before startIndex
+    while (match = reLineComment.exec(text)) && match.index < startIndex
+      lastComment = match
+
+    #check if last line-comment is in same line as startIndex
+    if lastComment
+      reNewLine = /\r|\n/g
+      reNewLine.lastIndex = lastComment.index
+      if match = reNewLine.exec(text)
+        #if match.index > startIndex#DEGUB
+        #  console.warn('import is within line-comment')
+        return match.index > startIndex # if the next NL comes after the import statement -> import statement is within the line-comment
+
+    return false
+
+  isInMultiLineComment: (startIndex, previousIndex, text) ->
+    reComment = /\/\*\*?/g
+    reClosing = /\*\//
+    reComment.lastIndex = previousIndex
+    isOpen = false
+    #check if last multi-line comment is open for startIndex
+    while (commentMatch = reComment.exec(text)) && commentMatch.index < startIndex
+      reClosing.lastIndex = commentMatch.index
+      if closingMatch = reClosing.exec() && closingMatch.index < startIndex
+        isOpen = false
+      else
+        isOpen = true
+
+    #if isOpen#DEBUG
+    #  console.warn('import in within multi-line-comment')
+
+    return isOpen
+
+  isImportFromFile: (regexImportStatement, symbolPath) ->
+      importPathRaw = regexImportStatement[2]#regarding index-access [2]: see RegExp definition for matchImports in addImportStatement()
+      importPathMatch = /'([^']+)'|"([^"]+)"/gm.exec(importPathRaw);
+      if importPathMatch
+        if importPathMatch[1]
+          importPath = importPathMatch[1]
+        else
+          importPath = importPathMatch[2]
+      if !importPath
+        console.log('could not extract file path from import statement', regexImportStatement)
+        return false
+      start = 0
+      end = importPath.length
+      if /^\.\/\.\./.test(importPath)
+        start = 2
+      #TODO normalize paths properly
+      importPath = importPath.substring(start, end)
+      return (importPath == symbolPath)
+
+  extractSymbolStringFrom: (regexImportStatement) ->
+    importStatement = regexImportStatement[0];
+    if /\{/gm.test(importStatement)
+      strSymbols = /.*\{([^}]+)\}/g.exec(importStatement)
+    else
+      strSymbols = /.*?import((.|\r|\n)+?)from/g.exec(importStatement)
+
+  containsSymbol: (regexImportStatement, newSymbol) ->
+    symbolStrList = @extractSymbolStringFrom(regexImportStatement)
+    reTest = new RegExp('\\s*' + newSymbol + '\\s*(,|$)', 'gm')
+    i = 0
+    size = symbolStrList.length
+    while i < size
+      if reTest.test(symbolStrList[i])
+        return true
+      ++i
+    return false
+
+  insertIntoStatement: (regexImportStatement, newSymbol, isDefaultImport) ->
+    #TODO handle default import?: "import {...} form ..." -> "import newSymbol, {...} form ..."
+    importStatement = regexImportStatement[0];
+    sb = [', ', newSymbol, ' '];
+    if /\{/gm.test(importStatement)
+      insertIndex = importStatement.lastIndexOf('}');
+    else
+      insertIndex = /from(.*)$/gm.exec(importStatement).index;#ASSERT there is at least on match, due to RegExp definition in addImportStatement()
+      sb[0] = '{ '
+      sb.push('}')
+    sb.unshift(importStatement.substring(0, insertIndex))
+    sb.push(importStatement.substring(insertIndex, importStatement.length))
+    return sb.join('')
 
   buildIndex: ->
     index = @index;
