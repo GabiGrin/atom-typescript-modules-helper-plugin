@@ -58,7 +58,7 @@ module.exports = TypescriptImport =
       editor = atom.workspace.getActiveTextEditor()
       currentText = editor.getText()
 
-      reImports = /import(.|\r|\n)+?from(.*)$/gm;
+      reImports = /\bimport\b(.|\r|\n)+?\bfrom\b(.*)$/gm;
       isDefined = false
       hasImportStatements = false;
       lastMatchIndex = 0
