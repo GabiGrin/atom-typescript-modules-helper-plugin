@@ -230,6 +230,8 @@ module.exports = TypescriptImport =
 
   containsSymbol: (regexImportStatement, newSymbol) ->
     symbolStrList = @extractSymbolStringFrom(regexImportStatement)
+    if !symbolStrList #either import statement was wrongfully detected, or its imported symbols could not be extracted
+      return false
     reTest = new RegExp('\\s*' + newSymbol + '\\s*(,|$)', 'gm')
     i = 0
     size = symbolStrList.length
