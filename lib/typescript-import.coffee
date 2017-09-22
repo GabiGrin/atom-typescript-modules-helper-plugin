@@ -58,7 +58,7 @@ module.exports = TypescriptImport =
       editor = atom.workspace.getActiveTextEditor()
       currentText = editor.getText()
 
-      reImports = /import(.|\r|\n)+?from(.*)$/gm;
+      reImports = /\bimport\b(.|\r|\n)+?\bfrom\b(.*)$/gm;
       isDefined = false
       hasImportStatements = false;
       lastMatchIndex = 0
@@ -230,6 +230,8 @@ module.exports = TypescriptImport =
 
   containsSymbol: (regexImportStatement, newSymbol) ->
     symbolStrList = @extractSymbolStringFrom(regexImportStatement)
+    if !symbolStrList #either import statement was wrongfully detected, or its imported symbols could not be extracted
+      return false
     reTest = new RegExp('\\s*' + newSymbol + '\\s*(,|$)', 'gm')
     i = 0
     size = symbolStrList.length
