@@ -109,33 +109,49 @@ module.exports = TypescriptImport =
         currentPosition.row++;
         editor.setCursorBufferPosition(currentPosition)
 
-  insert: ->
+  insert: (isRetry) ->
       editor = atom.workspace.getActiveTextEditor()
-      @buildIndex()
-      @bindEvent(editor)
-      os = require('os')
-      path = require('path')
-      position = editor.getCursorBufferPosition()
-      editor.selectWordsContainingCursors()
-      selection = editor.getSelectedText().trim()
-      filePath = editor.getPath()
-      symbol = @index[selection]
-
-      if symbol && selection
-        location = symbol.path;
-        defaultImport = symbol.defaultImport;
-        fileFolder = path.resolve(filePath + '/..');
-        relative = path.relative(fileFolder, location).replace(/\.(jsx?|tsx?)$/, '');
-        # Replace the windows path seperator with '/'
-        if (os.platform() == 'win32')
-            relative = relative.split(path.sep).join('/');
-
-        if(!/^\./.test(relative))
-          relative = './' + relative;
-
-        @addImportStatement(selection, relative, defaultImport)
+      if isRetry
+        #on retry: wait for index-built to finish, before continuing
+        that = this
+        (this._buildingIndex || @buildIndex()).then( () -> that.doInsert(editor, true))
       else
-        atom.notifications.addError('Symbol '+selection+' not found.');
+        #first try: do not wait for index-built to finish
+        if !this._buildingIndex
+          @buildIndex()#only start building index, if it is not already in progress
+        @doInsert(editor, false)
+
+  doInsert: (editor, isRetry) ->
+    # console.log('doInsert('+isRetry+')')
+    @bindEvent(editor)
+    os = require('os')
+    path = require('path')
+    position = editor.getCursorBufferPosition()
+    editor.selectWordsContainingCursors()
+    selection = editor.getSelectedText().trim()
+    filePath = editor.getPath()
+    symbol = @index[selection]
+
+    if symbol && selection
+      location = symbol.path;
+      defaultImport = symbol.defaultImport;
+      fileFolder = path.resolve(filePath + '/..');
+      relative = path.relative(fileFolder, location).replace(/\.(jsx?|tsx?)$/, '');
+      # Replace the windows path seperator with '/'
+      if (os.platform() == 'win32')
+          relative = relative.split(path.sep).join('/');
+
+      if(!/^\./.test(relative))
+        relative = './' + relative;
+
+      @addImportStatement(selection, relative, defaultImport)
+    else
+      if isRetry
+        #if already retried: show error
+        atom.notifications.addError('Symbol '+selection+' not found.')
+      else
+        #on first try: retry with waiting for index-build to finish
+        @insert(true)
 
   createNewImportStatement: (importedSymbol, relativePath, isDefaultImport) ->
     nl = @getNewLineChar()
@@ -198,7 +214,7 @@ module.exports = TypescriptImport =
         isOpen = true
 
     #if isOpen#DEBUG
-    #  console.warn('import in within multi-line-comment')
+    #  console.warn('import within multi-line-comment')
 
     return isOpen
 
@@ -240,13 +256,13 @@ module.exports = TypescriptImport =
     return false
 
   insertIntoStatement: (regexImportStatement, newSymbol, isDefaultImport) ->
-    #TODO handle default import?: "import {...} form ..." -> "import newSymbol, {...} form ..."
+    #TODO handle default import?: "import {...} from ..." -> "import newSymbol, {...} from ..."
     importStatement = regexImportStatement[0];
     sb = [', ', newSymbol, ' '];
     if /\{/gm.test(importStatement)
       insertIndex = importStatement.lastIndexOf('}');
     else
-      insertIndex = /from(.*)$/gm.exec(importStatement).index;#ASSERT there is at least on match, due to RegExp definition in addImportStatement()
+      insertIndex = /from(.*)$/gm.exec(importStatement).index;#ASSERT there is at least one match, due to RegExp definition in addImportStatement()
       sb[0] = '{ '
       sb.push('}')
     sb.unshift(importStatement.substring(0, insertIndex))
@@ -254,21 +270,35 @@ module.exports = TypescriptImport =
     return sb.join('')
 
   buildIndex: ->
+    # console.log('buildIndex')
     index = @index;
+    rebuiltIndex = {}
     searchPaths = ['**/*.ts', '**/*.js', '**/*.tsx', '**/*.jsx'];
     symbolPattern = /export\s*default\s*(class|interface|namespace|enum|const|type|function)?\s*(([a-zA-Z0-9])*)/
-    atom.workspace.scan(symbolPattern, { paths: searchPaths }, (result) ->
+    symbolPatternNoDefault = /export *(class|interface|namespace|enum|const|type|function)?\s*(([a-zA-Z0-9])*)/
+    that = this
+    task = Promise.all([atom.workspace.scan(symbolPattern, { paths: searchPaths }, (result) ->
         for res in result.matches
           rawSymbol = res.matchText
           symbol = rawSymbol.match(symbolPattern)[2];
           index[symbol] = { path: result.filePath, defaultImport: true };
-      );
-    symbolPatternNoDefault = /export *(class|interface|namespace|enum|const|type|function)?\s*(([a-zA-Z0-9])*)/
-    atom.workspace.scan(symbolPatternNoDefault, { paths: searchPaths }, (result) ->
+          rebuiltIndex[symbol] = index[symbol];
+      ),
+      atom.workspace.scan(symbolPatternNoDefault, { paths: searchPaths }, (result) ->
         for res in result.matches
           rawSymbol = res.matchText
           symbol = rawSymbol.match(symbolPatternNoDefault)[2];
           index[symbol] = { path: result.filePath, defaultImport: false };
-      );
+          rebuiltIndex[symbol] = index[symbol];
+      )
+    ]).then( () ->
+      # replace index with freshly build one:
+      that.index = rebuiltIndex
+      # remove/reset "building index in progress":
+      that._buildingIndex = null
+    )
+    this._buildingIndex = task
+    return task
+
   getIndex: ->
     @index
