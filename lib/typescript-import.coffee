@@ -1,6 +1,6 @@
 SubAtom = require 'sub-atom';
 
-{CompositeDisposable} = require 'atom'
+{CompositeDisposable, Range} = require 'atom'
 
 module.exports = TypescriptImport =
   modalPanel: null
@@ -62,52 +62,65 @@ module.exports = TypescriptImport =
       isDefined = false
       hasImportStatements = false;
       lastMatchIndex = 0
-      while(!isDefined && importMatch = reImports.exec(currentText))
-        if !@isInComment(importMatch.index, lastMatchIndex, currentText)
+      existingImportStatement = null
+      lastImport = null
+      lastImportRange = null
+      that = this
+      editor.scan(reImports, (found) ->
+        importMatch = found.match;
+        if (!that.isInComment(importMatch.index, lastMatchIndex, currentText))
           lastMatchIndex = importMatch.index
           hasImportStatements = true
           #TODO check for comments using lastImport
           lastImport = importMatch[0]
-          if @containsSymbol(importMatch, importedSymbol)
+          lastImportRange = found.range
+          if that.containsSymbol(importMatch, importedSymbol)
             isDefined = true
+            found.stop()#break
           #TODO handle insertion of default imports (currently: create a new import statement if default import)
-          else if !isDefaultImport && @isImportFromFile(importMatch, relativePath)
-            newStatement = @insertIntoStatement(importMatch, importedSymbol, isDefaultImport)
-            existingImportStatement = {match: importMatch, statement: newStatement}
+          else if !isDefaultImport && that.isImportFromFile(importMatch, relativePath)
+            newStatement = that.insertIntoStatement(importMatch, importedSymbol, isDefaultImport)
+            existingImportStatement = {match: importMatch, statement: newStatement, range: found.range}
         else
             lastMatchIndex = importMatch.index
+      )
 
       if isDefined
         atom.notifications.addWarning('Import '+importedSymbol+' is already defined.');
       else
-        currentPosition = editor.getCursorBufferPosition()
+        insertText = null
+        insertRange = null
         if hasImportStatements
           if existingImportStatement
-            newStatement = existingImportStatement.statement
-            importMatch = existingImportStatement.match
-            prefixEnd = importMatch.index
-            suffixStart = prefixEnd + importMatch[0].length
-            currentText = currentText.substring(0, prefixEnd) + newStatement + currentText.substring(suffixStart)
+            insertText = existingImportStatement.statement
+            insertRange = existingImportStatement.range
           else
-            importStatement = @createNewImportStatement(importedSymbol, relativePath, isDefaultImport)
-            currentText = currentText.replace(lastImport, lastImport + importStatement);
+            insertText = @createNewImportStatement(importedSymbol, relativePath, isDefaultImport)
+            insertRange = lastImportRange.copy()
+            insertRange.start = insertRange.end.copy()#insert after the lastImport
         else
-          importStatement = @createNewImportStatement(importedSymbol, relativePath, isDefaultImport)
-          referencesMatches= currentText.match(/\/\/\/\s*<reference\s*path.*\/>\s*$/gm)
-          nl = @getNewLineChar()
-          if referencesMatches
-            lastReference = referencesMatches.pop();
-            currentText = currentText.replace(lastReference, lastReference + importStatement + nl);
-          else
-            useStrictMatche = currentText.match(/.*[\'\"]use strict[\'\"].*/)
-            if useStrictMatche
-              useStrict = useStrictMatche.pop();
-              currentText = currentText.replace(useStrict, useStrict + importStatement + nl);
-            else
-              currentText = importStatement + currentText;
-        editor.setText(currentText);
-        currentPosition.row++;
-        editor.setCursorBufferPosition(currentPosition)
+          insertText = @createNewImportStatement(importedSymbol, relativePath, isDefaultImport) + @getNewLineChar()
+          endPos = @getRangeForAll(editor)
+          insertRange = @getInsertRange(editor, /\/\/\/\s*<reference\s*path.*\/>\s*$/gm, endPos)
+          if !insertRange
+            insertRange = @getInsertRange(editor, /.*[\'\"]use strict[\'\"].*/, endPos)
+          if !insertRange
+            insertRange = new Range([0,0], [0,0])
+
+        editor.setTextInBufferRange(insertRange, insertText)
+
+  getInsertRange: (editor, regexp, searchRange) ->
+    range = null
+    editor.backwardsScanInBufferRange(regexp, searchRange, (found) ->
+        range = found.range.copy()
+        range.start = range.end.copy()#set insert after found match
+        found.stop()
+    )
+    return range
+
+  getRangeForAll: (editor) ->
+    lastRow = editor.getLastBufferRow()
+    return new Range([0,0],[lastRow, editor.lineTextForBufferRow(lastRow).length])
 
   insert: ->
       editor = atom.workspace.getActiveTextEditor()
