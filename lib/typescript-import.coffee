@@ -116,8 +116,9 @@ module.exports = TypescriptImport =
         that = this
         (this._buildingIndex || @buildIndex()).then( () -> that.doInsert(editor, true))
       else
-        #first try: do not wait for index-built to finish
-        if !this._buildingIndex
+        #first try: only build, if index does not yet exist
+        #          (and if it does: do not wait for index-built to finish)
+        if !@index && !this._buildingIndex
           @buildIndex()#only start building index, if it is not already in progress
         @doInsert(editor, false)
 
